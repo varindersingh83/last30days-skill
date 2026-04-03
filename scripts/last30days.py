@@ -46,7 +46,7 @@ TIMEOUT_PROFILES = {
 # Valid source names for the --search flag
 VALID_SEARCH_SOURCES = {
     "reddit", "x", "hn", "bluesky", "bsky", "truthsocial", "truth", "youtube", "tiktok", "instagram",
-    "polymarket", "web", "xiaohongshu", "xhs",
+    "polymarket", "web", "xiaohongshu", "xhs", "github",
 }
 
 
@@ -144,6 +144,7 @@ from lib import (
     polymarket,
     entity_extract,
     env,
+    github,
     http,
     models,
     normalize,
@@ -602,6 +603,37 @@ def _search_polymarket(
     return pm_items, pm_error
 
 
+def _search_github(
+    topic: str,
+    from_date: str,
+    to_date: str,
+    depth: str,
+    token: str,
+) -> tuple:
+    """Search GitHub via REST API (runs in thread).
+
+    Returns:
+        Tuple of (github_items, github_error)
+    """
+    github_error = None
+
+    try:
+        response = github.search_github(
+            topic, from_date, to_date, depth=depth, token=token,
+        )
+    except Exception as e:
+        return [], f"{type(e).__name__}: {e}"
+
+    github_items = github.parse_github_response(response, query=topic)
+
+    if response.get("repo_error"):
+        github_error = response["repo_error"]
+    elif response.get("issue_error"):
+        github_error = response["issue_error"]
+
+    return github_items, github_error
+
+
 def _search_web(
     topic: str,
     config: dict,
@@ -893,16 +925,17 @@ def run_research(
     do_bluesky: bool = True,
     do_truthsocial: bool = True,
     do_polymarket: bool = True,
+    do_github: bool = True,
     no_native_web: bool = False,
 ) -> tuple:
     """Run the research pipeline.
 
     Returns:
         Tuple of (reddit_items, x_items, youtube_items, tiktok_items, instagram_items,
-                  hackernews_items, bluesky_items, truthsocial_items, polymarket_items, web_items, web_needed,
+                  hackernews_items, bluesky_items, truthsocial_items, polymarket_items, github_items, web_items, web_needed,
                   raw_openai, raw_xai, raw_reddit_enriched,
                   reddit_error, x_error, youtube_error, tiktok_error, instagram_error,
-                  hackernews_error, bluesky_error, truthsocial_error, polymarket_error, web_error)
+                  hackernews_error, bluesky_error, truthsocial_error, polymarket_error, github_error, web_error)
 
     Note: web_needed is True when web search should be performed by the assistant
     (i.e., no native web search API keys are configured). When native web search
@@ -921,6 +954,7 @@ def run_research(
     bluesky_items = []
     truthsocial_items = []
     polymarket_items = []
+    github_items = []
     web_items = []
     raw_openai = None
     raw_xai = None
@@ -934,6 +968,7 @@ def run_research(
     bluesky_error = None
     truthsocial_error = None
     polymarket_error = None
+    github_error = None
     web_error = None
     xiaohongshu_error = None
 
@@ -1017,7 +1052,7 @@ def run_research(
                     progress.show_error(f"Instagram error: {e}")
             if progress:
                 progress.end_instagram(len(instagram_items))
-        return reddit_items, x_items, youtube_items, tiktok_items, instagram_items, hackernews_items, bluesky_items, truthsocial_items, polymarket_items, web_items, web_needed, raw_openai, raw_xai, raw_reddit_enriched, reddit_error, x_error, youtube_error, tiktok_error, instagram_error, hackernews_error, bluesky_error, truthsocial_error, polymarket_error, web_error
+        return reddit_items, x_items, youtube_items, tiktok_items, instagram_items, hackernews_items, bluesky_items, truthsocial_items, polymarket_items, github_items, web_items, web_needed, raw_openai, raw_xai, raw_reddit_enriched, reddit_error, x_error, youtube_error, tiktok_error, instagram_error, hackernews_error, bluesky_error, truthsocial_error, polymarket_error, github_error, web_error
 
     # Determine which searches to run
     do_reddit = sources in ("both", "reddit", "all", "reddit-web")
@@ -1036,6 +1071,7 @@ def run_research(
     bluesky_future = None
     truthsocial_future = None
     polymarket_future = None
+    github_future = None
     web_future = None
     max_workers = (
         2
@@ -1047,6 +1083,7 @@ def run_research(
         + (1 if do_bluesky else 0)
         + (1 if do_truthsocial else 0)
         + (1 if do_polymarket else 0)
+        + (1 if do_github else 0)
         + (1 if web_backend else 0)
     )
 
@@ -1118,6 +1155,14 @@ def run_research(
                 progress.start_polymarket()
             polymarket_future = executor.submit(
                 _search_polymarket, topic, from_date, to_date, depth
+            )
+
+        if do_github:
+            sys.stderr.write("[GitHub] Searching GitHub\n")
+            sys.stderr.flush()
+            github_future = executor.submit(
+                _search_github, topic, from_date, to_date, depth,
+                env.get_github_token(config)
             )
 
         if web_backend:
@@ -1292,6 +1337,23 @@ def run_research(
             if progress:
                 progress.end_polymarket(len(polymarket_items))
 
+        if github_future:
+            gh_timeout = timeouts.get("github_future", future_timeout)
+            try:
+                github_items, github_error = github_future.result(timeout=gh_timeout)
+                if github_error and progress:
+                    progress.show_error(f"GitHub error: {github_error}")
+            except TimeoutError:
+                github_error = f"GitHub search timed out after {gh_timeout}s"
+                if progress:
+                    progress.show_error(github_error)
+            except Exception as e:
+                github_error = f"{type(e).__name__}: {e}"
+                if progress:
+                    progress.show_error(f"GitHub error: {e}")
+            sys.stderr.write(f"[GitHub] {len(github_items)} results\n")
+            sys.stderr.flush()
+
         if web_future:
             try:
                 web_items, web_error = web_future.result(timeout=future_timeout)
@@ -1409,7 +1471,7 @@ def run_research(
         if sup_x:
             x_items.extend(sup_x)
 
-    return reddit_items, x_items, youtube_items, tiktok_items, instagram_items, hackernews_items, bluesky_items, truthsocial_items, polymarket_items, web_items, web_needed, raw_openai, raw_xai, raw_reddit_enriched, reddit_error, x_error, youtube_error, tiktok_error, instagram_error, hackernews_error, bluesky_error, truthsocial_error, polymarket_error, web_error
+    return reddit_items, x_items, youtube_items, tiktok_items, instagram_items, hackernews_items, bluesky_items, truthsocial_items, polymarket_items, github_items, web_items, web_needed, raw_openai, raw_xai, raw_reddit_enriched, reddit_error, x_error, youtube_error, tiktok_error, instagram_error, hackernews_error, bluesky_error, truthsocial_error, polymarket_error, github_error, web_error
 
 
 def main():
@@ -1735,9 +1797,13 @@ def main():
     search_run_tiktok = has_tiktok and qt.is_source_enabled("tiktok", query_type)
     search_run_instagram = has_instagram and qt.is_source_enabled("instagram", query_type)
     search_run_xiaohongshu = has_xiaohongshu
+    has_github = env.is_github_available(config)
+    search_do_github = has_github and qt.is_source_enabled("github", query_type)
+    search_run_github = has_github
 
     # INCLUDE_SOURCES override: force specific sources on regardless of tier
-    _include_sources = {s.strip().lower() for s in config.get('INCLUDE_SOURCES', '').split(',') if s.strip()}
+    _include_sources_str = config.get('INCLUDE_SOURCES') or ''
+    _include_sources = {s.strip().lower() for s in _include_sources_str.split(',') if s.strip()}
     if _include_sources:
         if 'tiktok' in _include_sources and has_tiktok:
             if not search_run_tiktok:
@@ -1760,6 +1826,7 @@ def main():
         search_run_instagram = "instagram" in search_sources and has_instagram
         # If explicitly requested, attempt Xiaohongshu even when preflight says unavailable.
         search_run_xiaohongshu = "xiaohongshu" in search_sources
+        search_do_github = "github" in search_sources and has_github
         include_search_web = "web" in search_sources
         # Map to existing sources string
         if has_reddit and has_x:
@@ -1773,7 +1840,7 @@ def main():
             sources = "web"  # hn/polymarket only; no Reddit/X
 
     # Run research
-    reddit_items, x_items, youtube_items, tiktok_items, instagram_items, hackernews_items, bluesky_items, truthsocial_items, polymarket_items, web_items, web_needed, raw_openai, raw_xai, raw_reddit_enriched, reddit_error, x_error, youtube_error, tiktok_error, instagram_error, hackernews_error, bluesky_error, truthsocial_error, polymarket_error, web_error = run_research(
+    reddit_items, x_items, youtube_items, tiktok_items, instagram_items, hackernews_items, bluesky_items, truthsocial_items, polymarket_items, github_items, web_items, web_needed, raw_openai, raw_xai, raw_reddit_enriched, reddit_error, x_error, youtube_error, tiktok_error, instagram_error, hackernews_error, bluesky_error, truthsocial_error, polymarket_error, github_error, web_error = run_research(
         args.topic,
         sources,
         config,
@@ -1794,6 +1861,7 @@ def main():
         do_bluesky=search_do_bluesky,
         do_truthsocial=search_do_truthsocial,
         do_polymarket=search_do_polymarket,
+        do_github=search_do_github,
         no_native_web=args.no_native_web,
     )
 
@@ -1810,6 +1878,7 @@ def main():
     normalized_bsky = normalize.normalize_bluesky_items(bluesky_items, from_date, to_date) if bluesky_items else []
     normalized_ts = normalize.normalize_truthsocial_items(truthsocial_items, from_date, to_date) if truthsocial_items else []
     normalized_pm = normalize.normalize_polymarket_items(polymarket_items, from_date, to_date) if polymarket_items else []
+    normalized_github = normalize.normalize_github_items(github_items, from_date, to_date) if github_items else []
     normalized_web = websearch.normalize_websearch_items(web_items, from_date, to_date) if web_items else []
 
     # Hard date filter: exclude items with verified dates outside the range
@@ -1829,6 +1898,7 @@ def main():
     filtered_ts = normalize.filter_by_date_range(normalized_ts, from_date, to_date) if normalized_ts else []
     # Polymarket: skip hard date filter - markets are active/traded, updatedAt is fine
     filtered_pm = normalized_pm
+    filtered_github = normalize.filter_by_date_range(normalized_github, from_date, to_date) if normalized_github else []
     filtered_web = normalize.filter_by_date_range(normalized_web, from_date, to_date) if normalized_web else []
 
     # Score items
@@ -1841,6 +1911,7 @@ def main():
     scored_bsky = score.score_bluesky_items(filtered_bsky) if filtered_bsky else []
     scored_ts = score.score_truthsocial_items(filtered_ts) if filtered_ts else []
     scored_pm = score.score_polymarket_items(filtered_pm) if filtered_pm else []
+    scored_github = score.score_github_items(filtered_github) if filtered_github else []
     scored_web = score.score_websearch_items(filtered_web, query_type=query_type) if filtered_web else []
 
     # Sort items (query-type-aware tiebreaker ordering)
@@ -1853,6 +1924,7 @@ def main():
     sorted_bsky = score.sort_items(scored_bsky, query_type=query_type) if scored_bsky else []
     sorted_ts = score.sort_items(scored_ts, query_type=query_type) if scored_ts else []
     sorted_pm = score.sort_items(scored_pm, query_type=query_type) if scored_pm else []
+    sorted_github = score.sort_items(scored_github, query_type=query_type) if scored_github else []
     sorted_web = score.sort_items(scored_web, query_type=query_type) if scored_web else []
 
     # Dedupe items
@@ -1865,6 +1937,7 @@ def main():
     deduped_bsky = dedupe.dedupe_bluesky(sorted_bsky) if sorted_bsky else []
     deduped_ts = dedupe.dedupe_truthsocial(sorted_ts) if sorted_ts else []
     deduped_pm = dedupe.dedupe_polymarket(sorted_pm) if sorted_pm else []
+    deduped_github = sorted_github
     deduped_web = websearch.dedupe_websearch(sorted_web) if sorted_web else []
 
     # Post-retrieval relevance filter: drop low-relevance items per source
@@ -1877,10 +1950,11 @@ def main():
     deduped_bsky = score.relevance_filter(deduped_bsky, "BLUESKY")
     deduped_ts = score.relevance_filter(deduped_ts, "TRUTHSOCIAL")
     deduped_pm = score.relevance_filter(deduped_pm, "POLYMARKET") if deduped_pm else []
+    deduped_github = score.relevance_filter(deduped_github, "GITHUB") if deduped_github else []
 
     # Cross-source linking: annotate items that discuss the same story
     dedupe.cross_source_link(
-        deduped_reddit, deduped_x, deduped_youtube, deduped_tiktok, deduped_ig, deduped_hn, deduped_bsky, deduped_ts, deduped_pm, deduped_web,
+        deduped_reddit, deduped_x, deduped_youtube, deduped_tiktok, deduped_ig, deduped_hn, deduped_bsky, deduped_ts, deduped_pm, deduped_github, deduped_web,
     )
 
     progress.end_processing()
@@ -1903,6 +1977,7 @@ def main():
     report.bluesky = deduped_bsky
     report.truthsocial = deduped_ts
     report.polymarket = deduped_pm
+    report.github = deduped_github
     report.web = deduped_web
     report.reddit_error = reddit_error
     report.x_error = x_error
@@ -1913,6 +1988,7 @@ def main():
     report.bluesky_error = bluesky_error
     report.truthsocial_error = truthsocial_error
     report.polymarket_error = polymarket_error
+    report.github_error = github_error
     report.web_error = web_error
     report.resolved_x_handle = args.x_handle
 
