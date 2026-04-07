@@ -475,6 +475,61 @@ class PolymarketItem:
 
 
 @dataclass
+class GitHubItem:
+    """Normalized GitHub item (repository, issue, or trending repo)."""
+    id: str
+    type: str
+    url: str = ""
+    full_name: str = ""
+    description: str = ""
+    stars: int = 0
+    forks: int = 0
+    language: str = ""
+    topics: List[str] = field(default_factory=list)
+    title: str = ""
+    body: str = ""
+    repository: str = ""
+    state: str = ""
+    comments: int = 0
+    date: Optional[str] = None
+    date_confidence: str = "high"
+    engagement: Optional[Engagement] = None
+    relevance: float = 0.5
+    why_relevant: str = ""
+    subs: SubScores = field(default_factory=SubScores)
+    score: int = 0
+    cross_refs: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        d = {
+            'id': self.id,
+            'type': self.type,
+            'url': self.url,
+            'full_name': self.full_name,
+            'description': self.description,
+            'stars': self.stars,
+            'forks': self.forks,
+            'language': self.language,
+            'topics': self.topics,
+            'title': self.title,
+            'body': self.body,
+            'repository': self.repository,
+            'state': self.state,
+            'comments': self.comments,
+            'date': self.date,
+            'date_confidence': self.date_confidence,
+            'engagement': self.engagement.to_dict() if self.engagement else None,
+            'relevance': self.relevance,
+            'why_relevant': self.why_relevant,
+            'subs': self.subs.to_dict(),
+            'score': self.score,
+        }
+        if self.cross_refs:
+            d['cross_refs'] = self.cross_refs
+        return d
+
+
+@dataclass
 class Report:
     """Full research report."""
     topic: str
@@ -494,6 +549,7 @@ class Report:
     bluesky: List[BlueskyItem] = field(default_factory=list)
     truthsocial: List[TruthSocialItem] = field(default_factory=list)
     polymarket: List[PolymarketItem] = field(default_factory=list)
+    github: List[GitHubItem] = field(default_factory=list)
     best_practices: List[str] = field(default_factory=list)
     prompt_pack: List[str] = field(default_factory=list)
     context_snippet_md: str = ""
@@ -508,6 +564,7 @@ class Report:
     bluesky_error: Optional[str] = None
     truthsocial_error: Optional[str] = None
     polymarket_error: Optional[str] = None
+    github_error: Optional[str] = None
     # Handle resolution
     resolved_x_handle: Optional[str] = None
     # Cache info
@@ -535,6 +592,7 @@ class Report:
             'bluesky': [b.to_dict() for b in self.bluesky],
             'truthsocial': [ts.to_dict() for ts in self.truthsocial],
             'polymarket': [p.to_dict() for p in self.polymarket],
+            'github': [g.to_dict() for g in self.github],
             'best_practices': self.best_practices,
             'prompt_pack': self.prompt_pack,
             'context_snippet_md': self.context_snippet_md,
@@ -561,6 +619,8 @@ class Report:
             d['truthsocial_error'] = self.truthsocial_error
         if self.polymarket_error:
             d['polymarket_error'] = self.polymarket_error
+        if self.github_error:
+            d['github_error'] = self.github_error
         if self.from_cache:
             d['from_cache'] = self.from_cache
         if self.cache_age_hours is not None:
@@ -788,6 +848,38 @@ class Report:
                 cross_refs=p.get('cross_refs', []),
             ))
 
+        # Reconstruct GitHub items (backward compat: key may not exist)
+        gh_items = []
+        for g in data.get('github', []):
+            eng = None
+            if g.get('engagement'):
+                eng = Engagement(**g['engagement'])
+            subs = SubScores(**g.get('subs', {})) if g.get('subs') else SubScores()
+            gh_items.append(GitHubItem(
+                id=g['id'],
+                type=g.get('type', 'repository'),
+                url=g.get('url', ''),
+                full_name=g.get('full_name', ''),
+                description=g.get('description', ''),
+                stars=g.get('stars', 0),
+                forks=g.get('forks', 0),
+                language=g.get('language', ''),
+                topics=g.get('topics', []),
+                title=g.get('title', ''),
+                body=g.get('body', ''),
+                repository=g.get('repository', ''),
+                state=g.get('state', ''),
+                comments=g.get('comments', 0),
+                date=g.get('date'),
+                date_confidence=g.get('date_confidence', 'high'),
+                engagement=eng,
+                relevance=g.get('relevance', 0.5),
+                why_relevant=g.get('why_relevant', ''),
+                subs=subs,
+                score=g.get('score', 0),
+                cross_refs=g.get('cross_refs', []),
+            ))
+
         return cls(
             topic=data['topic'],
             range_from=range_from,
@@ -805,6 +897,7 @@ class Report:
             hackernews=hn_items,
             truthsocial=ts_items,
             polymarket=pm_items,
+            github=gh_items,
             best_practices=data.get('best_practices', []),
             prompt_pack=data.get('prompt_pack', []),
             context_snippet_md=data.get('context_snippet_md', ''),
@@ -817,6 +910,7 @@ class Report:
             hackernews_error=data.get('hackernews_error'),
             truthsocial_error=data.get('truthsocial_error'),
             polymarket_error=data.get('polymarket_error'),
+            github_error=data.get('github_error'),
             resolved_x_handle=data.get('resolved_x_handle'),
             from_cache=data.get('from_cache', False),
             cache_age_hours=data.get('cache_age_hours'),

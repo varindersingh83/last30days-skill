@@ -1,7 +1,7 @@
 ---
 name: last30days
 version: "2.9.6"
-description: "Deep research engine covering the last 30 days across 10+ sources - Reddit, X/Twitter, YouTube, TikTok, Instagram, Hacker News, Polymarket, and the web. AI synthesizes findings into grounded, cited reports."
+description: "Deep research engine covering the last 30 days across 11+ sources - Reddit, X/Twitter, YouTube, TikTok, Instagram, Hacker News, Polymarket, GitHub, and the web. AI synthesizes findings into grounded, cited reports."
 argument-hint: 'last30 AI video tools, last30 best project management tools'
 allowed-tools: Bash, Read, Write, AskUserQuestion, WebSearch
 homepage: https://github.com/mvanhorn/last30days-skill
@@ -27,6 +27,7 @@ metadata:
         - BSKY_HANDLE
         - BSKY_APP_PASSWORD
         - TRUTHSOCIAL_TOKEN
+        - GITHUB_TOKEN
       bins:
         - node
         - python3
@@ -45,6 +46,7 @@ metadata:
       - instagram
       - hackernews
       - polymarket
+      - github
       - bluesky
       - truthsocial
       - trends
@@ -63,7 +65,7 @@ metadata:
 
 > **Permissions overview:** Reads public web/platform data and optionally saves research briefings to `~/Documents/Last30Days/`. X/Twitter search uses optional user-provided tokens (AUTH_TOKEN/CT0 env vars). Bluesky search uses optional app password (BSKY_HANDLE/BSKY_APP_PASSWORD env vars - create at bsky.app/settings/app-passwords). All credential usage and data writes are documented in the [Security & Permissions](#security--permissions) section.
 
-Research ANY topic across Reddit, X, YouTube, and other sources. Surface what people are actually discussing, recommending, betting on, and debating right now.
+Research ANY topic across Reddit, X, YouTube, GitHub, and other sources. Surface what people are actually discussing, building, recommending, betting on, and debating right now.
 
 ## Step 0: First-Run Setup Wizard
 
@@ -163,6 +165,7 @@ Add these to `~/.config/last30days/.env`:
 - `BSKY_HANDLE=you.bsky.social` + `BSKY_APP_PASSWORD=xxx` — Bluesky (free app password)
 - `BRAVE_API_KEY=xxx` — Brave web search
 - `OPENROUTER_API_KEY=xxx` — Perplexity Sonar Pro search
+- `GITHUB_TOKEN=xxx` — GitHub API (5K requests/hour vs 60 without) — create at github.com/settings/tokens (no scopes needed)
 
 Always add this last line: `SETUP_COMPLETE=true`
 
@@ -294,7 +297,7 @@ Agent mode report format:
 
 ```
 ## Research Report: {TOPIC}
-Generated: {date} | Sources: Reddit, X, Bluesky, YouTube, TikTok, HN, Polymarket, Web
+Generated: {date} | Sources: Reddit, X, Bluesky, YouTube, TikTok, HN, Polymarket, GitHub, Web
 
 ### Key Findings
 [3-5 bullet points, highest-signal insights with citations]

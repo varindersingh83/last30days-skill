@@ -651,6 +651,61 @@ def score_polymarket_items(items: List[schema.PolymarketItem]) -> List[schema.Po
     return items
 
 
+def compute_github_engagement_raw(engagement: Optional[schema.Engagement]) -> Optional[float]:
+    """Compute raw engagement score for GitHub item.
+
+    Formula: 0.60*log1p(stars) + 0.40*log1p(forks or comments)
+    Stars are the primary signal for repositories; comments for issues.
+    """
+    if engagement is None:
+        return None
+
+    stars = log1p_safe(getattr(engagement, 'stars', None) or 0)
+    secondary = log1p_safe(getattr(engagement, 'forks', None) or getattr(engagement, 'num_comments', None) or 0)
+
+    return 0.60 * stars + 0.40 * secondary
+
+
+def score_github_items(items: List[schema.GitHubItem]) -> List[schema.GitHubItem]:
+    """Compute scores for GitHub items.
+
+    Uses same weight structure as Reddit/X (relevance + recency + engagement).
+    """
+    if not items:
+        return items
+
+    eng_raw = [compute_github_engagement_raw(item.engagement) for item in items]
+    eng_normalized = normalize_to_100(eng_raw)
+
+    for i, item in enumerate(items):
+        rel_score = int(item.relevance * 100)
+        rec_score = dates.recency_score(item.date)
+
+        if eng_normalized[i] is not None:
+            eng_score = int(eng_normalized[i])
+        else:
+            eng_score = DEFAULT_ENGAGEMENT
+
+        item.subs = schema.SubScores(
+            relevance=rel_score,
+            recency=rec_score,
+            engagement=eng_score,
+        )
+
+        overall = (
+            WEIGHT_RELEVANCE * rel_score +
+            WEIGHT_RECENCY * rec_score +
+            WEIGHT_ENGAGEMENT * eng_score
+        )
+
+        if eng_raw[i] is None:
+            overall -= UNKNOWN_ENGAGEMENT_PENALTY
+
+        item.score = max(0, min(100, int(overall)))
+
+    return items
+
+
 def score_websearch_items(items: List[schema.WebSearchItem], query_type: QueryType = None) -> List[schema.WebSearchItem]:
     """Compute scores for WebSearch items WITHOUT engagement metrics.
 
@@ -717,8 +772,9 @@ _ITEM_SOURCE_MAP = {
     schema.BlueskyItem: "bluesky",
     schema.TruthSocialItem: "truthsocial",
     schema.PolymarketItem: "polymarket",
+    schema.GitHubItem: "github",
 }
-_DEFAULT_TIEBREAKER = {"reddit": 0, "x": 1, "youtube": 2, "tiktok": 3, "instagram": 4, "hn": 5, "bluesky": 6, "truthsocial": 7, "polymarket": 8, "web": 9}
+_DEFAULT_TIEBREAKER = {"reddit": 0, "x": 1, "youtube": 2, "tiktok": 3, "instagram": 4, "hn": 5, "bluesky": 6, "truthsocial": 7, "polymarket": 8, "github": 9, "web": 10}
 
 
 def sort_items(items: List[Union[schema.RedditItem, schema.XItem, schema.WebSearchItem, schema.YouTubeItem, schema.TikTokItem, schema.InstagramItem, schema.HackerNewsItem, schema.BlueskyItem, schema.TruthSocialItem, schema.PolymarketItem]], query_type: QueryType = None) -> List:

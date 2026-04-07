@@ -65,6 +65,8 @@ def get_item_text(item: AnyItem) -> str:
         return f"{item.title} {item.question}"
     elif isinstance(item, schema.WebSearchItem):
         return item.title
+    elif isinstance(item, schema.GitHubItem):
+        return f"{item.title} {item.description} {item.body}"
     else:
         return item.text
 
@@ -91,6 +93,8 @@ def _get_cross_source_text(item: AnyItem) -> str:
         return title
     if isinstance(item, schema.PolymarketItem):
         return item.title
+    if isinstance(item, schema.GitHubItem):
+        return f"{item.title} {item.description}"
     return get_item_text(item)
 
 

@@ -367,6 +367,7 @@ def get_config() -> Dict[str, Any]:
         ('XAI_MODEL_PIN', None),
         ('SCRAPECREATORS_API_KEY', None),
         ('APIFY_API_TOKEN', None),
+        ('GITHUB_TOKEN', None),
         ('AUTH_TOKEN', None),
         ('CT0', None),
         ('BSKY_HANDLE', None),
@@ -707,6 +708,20 @@ def is_instagram_available(config: Dict[str, Any]) -> bool:
     Instagram uses the same key as TikTok.
     """
     return bool(config.get('SCRAPECREATORS_API_KEY'))
+
+
+def is_github_available(config: Dict[str, Any]) -> bool:
+    """Check if GitHub source is available.
+
+    Returns True if GITHUB_TOKEN is set.
+    Without token, limited to 60 requests/hour.
+    """
+    return bool(config.get('GITHUB_TOKEN'))
+
+
+def get_github_token(config: Dict[str, Any]) -> str:
+    """Get GitHub API token."""
+    return config.get('GITHUB_TOKEN', '')
 
 
 def get_instagram_token(config: Dict[str, Any]) -> str:

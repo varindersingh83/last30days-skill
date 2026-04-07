@@ -484,6 +484,61 @@ def normalize_polymarket_items(
     return normalized
 
 
+def normalize_github_items(
+    items: List[Dict[str, Any]],
+    from_date: str,
+    to_date: str,
+) -> List[schema.GitHubItem]:
+    """Normalize raw GitHub items to schema.
+
+    Args:
+        items: Raw GitHub items from API
+        from_date: Start of date range
+        to_date: End of date range
+
+    Returns:
+        List of GitHubItem objects
+    """
+    normalized = []
+
+    for item in items:
+        item_type = item.get("type", "repository")
+        stars = item.get("stars", 0)
+        forks = item.get("forks", 0)
+        comments = item.get("comments", 0)
+
+        engagement = schema.Engagement(
+            score=stars,
+            num_comments=comments,
+        )
+
+        date_str = item.get("date")
+
+        normalized.append(schema.GitHubItem(
+            id=item.get("id", ""),
+            type=item_type,
+            url=item.get("url", ""),
+            full_name=item.get("full_name", ""),
+            description=item.get("description", ""),
+            stars=stars,
+            forks=forks,
+            language=item.get("language", ""),
+            topics=item.get("topics", []),
+            title=item.get("title", ""),
+            body=item.get("body", ""),
+            repository=item.get("repository", ""),
+            state=item.get("state", ""),
+            comments=comments,
+            date=date_str,
+            date_confidence="high",
+            engagement=engagement,
+            relevance=item.get("relevance", 0.5),
+            why_relevant=item.get("why_relevant", ""),
+        ))
+
+    return normalized
+
+
 def items_to_dicts(items: List) -> List[Dict[str, Any]]:
     """Convert schema items to dicts for JSON serialization."""
     return [item.to_dict() for item in items]
