@@ -1158,8 +1158,6 @@ def run_research(
             )
 
         if do_github:
-            sys.stderr.write("[GitHub] Searching GitHub\n")
-            sys.stderr.flush()
             github_future = executor.submit(
                 _search_github, topic, from_date, to_date, depth,
                 env.get_github_token(config)
@@ -1829,6 +1827,8 @@ def main():
         search_do_github = "github" in search_sources and has_github
         include_search_web = "web" in search_sources
         # Map to existing sources string
+        # If github is requested, don't use "web" mode (bypasses parallel executor)
+        has_github_source = "github" in search_sources
         if has_reddit and has_x:
             sources = "both" + ("-web" if include_search_web else "")
             sources = "all" if include_search_web else "both"
@@ -1836,6 +1836,8 @@ def main():
             sources = "reddit-web" if include_search_web else "reddit"
         elif has_x:
             sources = "x-web" if include_search_web else "x"
+        elif has_github_source:
+            sources = "reddit-web"  # Use reddit-web to trigger parallel executor
         else:
             sources = "web"  # hn/polymarket only; no Reddit/X
 

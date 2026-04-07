@@ -51,6 +51,9 @@ def ensure_output_dir():
     env_dir = os.environ.get("LAST30DAYS_OUTPUT_DIR")
     if env_dir:
         OUTPUT_DIR = Path(env_dir)
+    else:
+        # Default to ./last30days_out in the current working directory
+        OUTPUT_DIR = Path.cwd() / "last30days_out"
 
     try:
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
