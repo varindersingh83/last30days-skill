@@ -178,6 +178,178 @@ def render_compact(report: schema.Report, limit: int = 15, missing_keys: str = "
             lines.append(f"  *{item.why_relevant}*")
             lines.append("")
 
+    # Reddit items (if any)
+    if report.reddit_error:
+        lines.append("### Reddit Results")
+        lines.append("")
+        lines.append(f"**ERROR:** {report.reddit_error}")
+        lines.append("")
+    elif report.reddit:
+        lines.append("### Reddit Results")
+        lines.append("")
+        for item in report.reddit[:limit]:
+            date_str = f" ({item.date})" if item.date else ""
+            lines.append(f"**{item.id}** (score:{item.score}) r/{item.subreddit}{date_str}{_xref_tag(item)}")
+            lines.append(f"  {item.title}")
+            lines.append(f"  {item.url}")
+            if item.top_comments and item.top_comments[0].score >= 10:
+                tc = item.top_comments[0]
+                lines.append(f"  💬 Top: {tc.excerpt[:150]}... ({tc.score} pts)")
+            lines.append(f"  *{item.why_relevant}*")
+            lines.append("")
+
+    # X items (if any)
+    if report.x_error:
+        lines.append("### X Results")
+        lines.append("")
+        lines.append(f"**ERROR:** {report.x_error}")
+        lines.append("")
+    elif report.x:
+        lines.append("### X Results")
+        lines.append("")
+        for item in report.x[:limit]:
+            date_str = f" ({item.date})" if item.date else ""
+            lines.append(f"**{item.id}** (score:{item.score}) @{item.author_handle}{date_str}{_xref_tag(item)}")
+            lines.append(f"  {item.text[:200]}")
+            lines.append(f"  {item.url}")
+            if item.engagement:
+                eng = item.engagement
+                lines.append(f"  ❤️ {eng.likes or '?'} 💾 {eng.reposts or '?'}")
+            lines.append(f"  *{item.why_relevant}*")
+            lines.append("")
+
+    # YouTube items (if any)
+    if report.youtube_error:
+        lines.append("### YouTube Results")
+        lines.append("")
+        lines.append(f"**ERROR:** {report.youtube_error}")
+        lines.append("")
+    elif report.youtube:
+        lines.append("### YouTube Results")
+        lines.append("")
+        for item in report.youtube[:limit]:
+            date_str = f" ({item.date})" if item.date else ""
+            lines.append(f"**{item.id}** (score:{item.score}) {item.title}{date_str}{_xref_tag(item)}")
+            lines.append(f"  {item.url}")
+            if item.engagement:
+                eng = item.engagement
+                lines.append(f"  👁️ {eng.views or '?'} ❤️ {eng.likes or '?'}")
+            if item.transcript_snippet:
+                lines.append(f"  📝 {item.transcript_snippet[:150]}...")
+            lines.append(f"  *{item.why_relevant}*")
+            lines.append("")
+
+    # TikTok items (if any)
+    if report.tiktok_error:
+        lines.append("### TikTok Results")
+        lines.append("")
+        lines.append(f"**ERROR:** {report.tiktok_error}")
+        lines.append("")
+    elif report.tiktok:
+        lines.append("### TikTok Results")
+        lines.append("")
+        for item in report.tiktok[:limit]:
+            date_str = f" ({item.date})" if item.date else ""
+            lines.append(f"**{item.id}** (score:{item.score}) @{item.author_name}{date_str}{_xref_tag(item)}")
+            lines.append(f"  {item.url}")
+            if item.caption_snippet:
+                lines.append(f"  {item.caption_snippet[:150]}...")
+            lines.append(f"  *{item.why_relevant}*")
+            lines.append("")
+
+    # Instagram items (if any)
+    if report.instagram_error:
+        lines.append("### Instagram Results")
+        lines.append("")
+        lines.append(f"**ERROR:** {report.instagram_error}")
+        lines.append("")
+    elif report.instagram:
+        lines.append("### Instagram Results")
+        lines.append("")
+        for item in report.instagram[:limit]:
+            date_str = f" ({item.date})" if item.date else ""
+            lines.append(f"**{item.id}** (score:{item.score}) @{item.author_name}{date_str}{_xref_tag(item)}")
+            lines.append(f"  {item.url}")
+            if item.caption_snippet:
+                lines.append(f"  {item.caption_snippet[:150]}...")
+            lines.append(f"  *{item.why_relevant}*")
+            lines.append("")
+
+    # Hacker News items (if any)
+    if report.hackernews_error:
+        lines.append("### Hacker News Results")
+        lines.append("")
+        lines.append(f"**ERROR:** {report.hackernews_error}")
+        lines.append("")
+    elif report.hackernews:
+        lines.append("### Hacker News Results")
+        lines.append("")
+        for item in report.hackernews[:limit]:
+            date_str = f" ({item.date})" if item.date else ""
+            lines.append(f"**{item.id}** (score:{item.score}) {item.title}{date_str}{_xref_tag(item)}")
+            lines.append(f"  {item.hn_url}")
+            if item.engagement:
+                eng = item.engagement
+                lines.append(f"  ⬆️ {eng.score or '?'} 💬 {eng.num_comments or '?'}")
+            lines.append(f"  *{item.why_relevant}*")
+            lines.append("")
+
+    # Bluesky items (if any)
+    if report.bluesky_error:
+        lines.append("### Bluesky Results")
+        lines.append("")
+        lines.append(f"**ERROR:** {report.bluesky_error}")
+        lines.append("")
+    elif report.bluesky:
+        lines.append("### Bluesky Results")
+        lines.append("")
+        for item in report.bluesky[:limit]:
+            date_str = f" ({item.date})" if item.date else ""
+            lines.append(f"**{item.id}** (score:{item.score}) @{item.author_handle}{date_str}{_xref_tag(item)}")
+            lines.append(f"  {item.text[:200]}")
+            lines.append(f"  {item.url}")
+            if item.engagement:
+                eng = item.engagement
+                lines.append(f"  ❤️ {eng.likes or '?'} 🔁 {eng.reposts or '?'}")
+            lines.append(f"  *{item.why_relevant}*")
+            lines.append("")
+
+    # Truth Social items (if any)
+    if report.truthsocial_error:
+        lines.append("### Truth Social Results")
+        lines.append("")
+        lines.append(f"**ERROR:** {report.truthsocial_error}")
+        lines.append("")
+    elif report.truthsocial:
+        lines.append("### Truth Social Results")
+        lines.append("")
+        for item in report.truthsocial[:limit]:
+            date_str = f" ({item.date})" if item.date else ""
+            lines.append(f"**{item.id}** (score:{item.score}) @{item.author_handle}{date_str}{_xref_tag(item)}")
+            lines.append(f"  {item.text[:200]}")
+            lines.append(f"  {item.url}")
+            lines.append(f"  *{item.why_relevant}*")
+            lines.append("")
+
+    # Polymarket items (if any)
+    if report.polymarket_error:
+        lines.append("### Polymarket Results")
+        lines.append("")
+        lines.append(f"**ERROR:** {report.polymarket_error}")
+        lines.append("")
+    elif report.polymarket:
+        lines.append("### Polymarket Results")
+        lines.append("")
+        for item in report.polymarket[:limit]:
+            date_str = f" ({item.date})" if item.date else ""
+            lines.append(f"**{item.id}** (score:{item.score}) {item.question}{date_str}{_xref_tag(item)}")
+            lines.append(f"  {item.url}")
+            if item.outcome_prices:
+                outcomes = [f"{name}: {price*100:.0f}%" for name, price in item.outcome_prices]
+                lines.append(f"  📊 {' | '.join(outcomes)}")
+            lines.append(f"  *{item.why_relevant}*")
+            lines.append("")
+
     return "\n".join(lines)
 
 
